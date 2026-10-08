@@ -1,0 +1,82 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.5
+      Plane Cell Count: 20
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Marker Scale: 0.3
+      Show Names: false
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Point cloud
+      Enabled: true
+      Topic:
+        Value: /camera/depth/points
+        Reliability Policy: Best Effort
+        Depth: 5
+        History Policy: Keep Last
+        Durability Policy: Volatile
+      Color Transformer: AxisColor
+      Axis: X
+      Use Fixed Frame: true
+      Autocompute Value Bounds: false
+      Min Value: 0.3
+      Max Value: 5
+      Style: Points
+      Size (Pixels): 2
+      Decay Time: 0
+    - Class: rviz_default_plugins/Image
+      Name: Color
+      Enabled: true
+      Topic:
+        Value: /camera/color/image_raw
+        Reliability Policy: Best Effort
+        Depth: 5
+        History Policy: Keep Last
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/Image
+      Name: Depth
+      Enabled: true
+      Topic:
+        Value: /camera/depth/image_raw
+        Reliability Policy: Best Effort
+        Depth: 5
+        History Policy: Keep Last
+        Durability Policy: Volatile
+      Normalize Range: false
+      Min Value: 0
+      Max Value: 5000
+  Enabled: true
+  Global Options:
+    Fixed Frame: camera_link
+    Background Color: 48; 48; 48
+    Frame Rate: 30
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 3
+      Focal Point:
+        X: 1.5
+        Y: 0
+        Z: 0
+      Pitch: 0.35
+      Yaw: 3.14
+      Target Frame: <Fixed Frame>
+Window Geometry:
+  Width: 1500
+  Height: 900
