@@ -42,6 +42,7 @@ RViz on the GPU, zero gaps longer than 0.3 s over a 40 s measurement.
 | `wsl/attach.sh` | **Re**-attaches the camera to WSL with usbipd (detach → attach, retries) | WSL |
 | `wsl/usbipd_watchdog.sh` | Watches `usbipd.exe` memory every 15 s, stops the camera above 3 GB | WSL |
 | `linux/setup.sh` | ROS package + udev rule + sysctl, one time | Jetson / Pi |
+| `linux/start.sh` | Starts the driver in the background with the settings measured on a Pi 5 (`USB2=1` for a USB 2 link) | Jetson / Pi |
 | `check.sh` | Checks the pitfalls below one by one: OK / WARN / FAIL | everywhere |
 | `config/gemini335l.rviz` | Point cloud (colored by distance) + color + depth images + tool bar | everywhere |
 | `config/cyclonedds.xml` | CycloneDDS receive buffer ≥ 10 MB | everywhere (if you use Cyclone) |
@@ -104,6 +105,12 @@ ros2 launch orbbec_camera gemini_330_series.launch.py \
 
 The last line moves the noise-removal filter from software into the camera — that is the only
 difference of Orbbec's own `_low_cpu` launch file, and it matters on an ARM CPU.
+`linux/start.sh` runs the same command in the background (`PC=true` adds the point cloud); stop it with
+`wsl/stop.sh`.
+
+> **On a USB 2 link this command exits with `No matched video stream profile`** — 848×480 color does
+> not exist there and depth is limited to 10 fps. See [measured on the Pi 5](#raspberry-pi-5--measured-october-2026)
+> for the USB 2 profile set (`USB2=1 linux/start.sh`), or fix the cable first.
 
 ### Jetson specifics
 
@@ -123,9 +130,51 @@ difference of Orbbec's own `_low_cpu` launch file, and it matters on an ARM CPU.
   with other supplies **0.6 A**. The 335L draws ~1.2 A at peak → the official supply is required. With
   other USB devices (a LiDAR, …) add them up, or use a powered hub.
 - Use a blue (USB 3) port; `check.sh` reports the speed.
-- CPU: 30 fps plus a point cloud is heavy for a Pi. Start with `depth_fps:=15`, enable the point cloud only if needed.
+- CPU: 848×480 @ 30 for depth and color plus the point cloud runs at full rate on a Pi 5; 1280×800 does
+  not (numbers below).
 - Run RViz on a PC on the network, not on the Pi (same `ROS_DOMAIN_ID`). Raw images over Wi-Fi are
-  heavy; for viewing use `/camera/color/image_raw/compressed`.
+  heavy; for viewing use `/camera/color/image_raw/compressed`. The compressed topics need
+  `sudo apt install ros-jazzy-image-transport-plugins` on the Pi.
+- Ubuntu desktop's `update-manager` used ~83 % CPU for a while after boot. Let it finish (or remove it)
+  before you measure anything.
+
+### Raspberry Pi 5 — measured (October 2026)
+
+Pi 5, Ubuntu 24.04.4 + Jazzy, official 27 W supply (`usb_max_current_enable=1`), active cooler, camera
+firmware 1.8.10, `ros-jazzy-orbbec-camera` 2.9.3. Installed with `linux/setup.sh`; `check.sh` passed
+except the USB speed line while the cable was USB 2.
+
+**USB 2 (480 Mbps) offers a smaller profile set:**
+
+| Stream | On USB 2 |
+|---|---|
+| Depth 848×480 | **10 fps max** (640×360 / 640×400 / 640×480 reach 30) |
+| Color 848×480 | **not offered** — 640×480 / 640×400 MJPG at 30, 1280×720 at 15 |
+
+Depth 848×480 @ 10 + color 640×480 @ 15 MJPG + point cloud (decimation 2): color 14.9 Hz, depth 10.0 Hz,
+point cloud 8.1 Hz, camera → ROS latency 0.11–0.14 s.
+
+**USB 3 (5 Gbps):**
+
+| Setting | Result |
+|---|---|
+| Depth 848×480 @ 30 + color 848×480 @ 30 MJPG + point cloud (decimation 2) | color 29.97 Hz · depth 29.97 Hz · point cloud 28.7–29.7 Hz |
+| Latency camera → ROS (`ros2 topic delay`) | depth **0.035 s** · color **0.042 s** (USB 2: 0.11–0.14 s) |
+| CPU with three subscribers | driver **69 % of one core**, 32 % of the whole CPU · 41 °C |
+| Depth 1280×800 + color 1280×720 @ 30 + point cloud | driver 178 %, 9–19 Hz — **too heavy** |
+
+**→ 848×480 @ 30 is the right setting for a Pi 5.**
+
+Measuring notes:
+
+- **The driver is lazy:** with no subscriber it publishes nothing and sits at ~10 % CPU. Measure CPU
+  with the topics you actually use subscribed.
+- **Cables:** the cable from the box and a Samsung USB-C → USB-A cable both linked at 480M on the blue
+  port. A different, good USB-A → USB-C cable gave 5000M. Check with `lsusb -t` (look for `5000M`).
+- **Remote desktop is not the camera:** RViz on the Pi's own desktop, watched over NoMachine, stuttered.
+  RViz, Xorg and the NoMachine encoder together filled the CPU and the Pi was on 2.4 GHz Wi-Fi, while
+  the topics themselves stayed at 30 Hz. Probably the remote-desktop encoding and the Wi-Fi —
+  *not verified over HDMI.*
 
 ---
 
@@ -254,7 +303,10 @@ In the order we hit them. The matching `check.sh` item is noted where there is o
 ### Small notes
 
 - Running `pkill -f "…launch.py"` in the same shell line as other commands that contain that text
-  **kills your own shell** too (exit 144). Call `wsl/stop.sh` on its own.
+  **kills your own shell** too (exit 144). Call `wsl/stop.sh` on its own. Over `ssh`, a `[x]`-style
+  pattern is not enough either when the text appears twice in the command line; match the process
+  name instead: `pkill -x rviz2`. For the same reason do not call `wsl/stop.sh` from inside an `ssh`
+  command whose command line contains `ros2 launch orbbec_camera` — it closes that shell too.
 - `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` together with `ROS_STATIC_PEERS` made the stock launch
   unable to load the node into its container here; removing the variable fixed it.
 - Leftover `ros2 launch` processes from earlier attempts confuse discovery; `wsl/stop.sh` cleans them up.

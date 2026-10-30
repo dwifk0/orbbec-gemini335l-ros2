@@ -39,6 +39,7 @@
 | `wsl/attach.sh` | Kamerayı usbipd ile WSL'ye **yeniden** bağlar (detach → attach, tekrar dener) | WSL |
 | `wsl/usbipd_watchdog.sh` | `usbipd.exe` belleğini 15 sn'de bir izler, >3 GB → kamerayı durdurur | WSL |
 | `linux/setup.sh` | Paket + udev + sysctl, tek seferlik | Jetson / Pi |
+| `linux/start.sh` | Sürücüyü Pi 5'te ölçülen ayarlarla arka planda başlatır (USB 2 bağlantı için `USB2=1`) | Jetson / Pi |
 | `check.sh` | Aşağıdaki tuzakları tarar: OK / WARN / FAIL | hepsi |
 | `config/gemini335l.rviz` | Nokta bulutu (uzaklığa göre renk) + renk + derinlik + araç çubuğu | hepsi |
 | `config/cyclonedds.xml` | CycloneDDS alma tamponu ≥10 MB | hepsi (Cyclone kullanıyorsan) |
@@ -102,7 +103,12 @@ ros2 launch orbbec_camera gemini_330_series.launch.py \
 ```
 
 Son satır, yazılım gürültü filtresini kameranın donanımına taşır (Orbbec'in `_low_cpu` launch'ının
-tek farkı bu). ARM işlemcide fark eder.
+tek farkı bu). ARM işlemcide fark eder. `linux/start.sh` aynı komutu arka planda çalıştırır
+(`PC=true` nokta bulutunu da açar); durdurmak için `wsl/stop.sh`.
+
+> **USB 2 bağlantıda bu komut `No matched video stream profile` hatasıyla çıkar** — orada 848×480
+> renk yok, derinlik de 10 fps ile sınırlı. USB 2 profilleri için [Pi 5'te ölçülenler](#raspberry-pi-5--ölçülen-değerler-ekim-2026)
+> bölümüne bak (`USB2=1 linux/start.sh`) ya da önce kabloyu düzelt.
 
 ### Jetson'a özel
 
@@ -122,9 +128,50 @@ tek farkı bu). ARM işlemcide fark eder.
   adaptörle **0,6 A** veriyor. 335L tepede ~1,2 A çeker → resmî adaptör şart. Yanında başka USB cihaz
   (LiDAR vb.) varsa toplamı hesapla ya da beslemeli hub kullan.
 - Mavi (USB 3) porta tak; `check.sh` hızı söyler.
-- İşlemci: 30 fps + nokta bulutu Pi'yi zorlar. Önce `depth_fps:=15`, nokta bulutunu yalnız gerekiyorsa aç.
+- İşlemci: derinlik ve renk 848×480 @ 30 + nokta bulutu Pi 5'te tam hızda çalışıyor; 1280×800 çalışmıyor
+  (sayılar aşağıda).
 - RViz'i Pi'de değil, ağdaki bir PC'de aç (aynı `ROS_DOMAIN_ID`). Ham görüntüyü ağdan taşımak ağır:
-  PC'de görüntü izleyeceksen `/camera/color/image_raw/compressed` kullan.
+  PC'de görüntü izleyeceksen `/camera/color/image_raw/compressed` kullan. Sıkıştırılmış konular için
+  Pi'de `sudo apt install ros-jazzy-image-transport-plugins` gerekir.
+- Ubuntu masaüstündeki `update-manager` açılıştan sonra bir süre işlemcinin ~%83'ünü yedi. Bir şey
+  ölçmeden önce bitmesini bekle (ya da kaldır).
+
+### Raspberry Pi 5 — ölçülen değerler (Ekim 2026)
+
+Pi 5, Ubuntu 24.04.4 + Jazzy, resmî 27 W adaptör (`usb_max_current_enable=1`), aktif soğutucu, kamera
+firmware 1.8.10, `ros-jazzy-orbbec-camera` 2.9.3. Kurulum `linux/setup.sh` ile; `check.sh` kablo USB 2
+iken yalnız USB hızı satırında uyardı.
+
+**USB 2 (480 Mbps) daha az profil sunuyor:**
+
+| Akış | USB 2'de |
+|---|---|
+| Derinlik 848×480 | **en çok 10 fps** (640×360 / 640×400 / 640×480 → 30) |
+| Renk 848×480 | **yok** — 640×480 / 640×400 MJPG 30, 1280×720 15 |
+
+Derinlik 848×480 @ 10 + renk 640×480 @ 15 MJPG + nokta bulutu (seyreltme 2): renk 14,9 Hz, derinlik
+10,0 Hz, nokta bulutu 8,1 Hz, kamera → ROS gecikmesi 0,11–0,14 sn.
+
+**USB 3 (5 Gbps):**
+
+| Ayar | Sonuç |
+|---|---|
+| Derinlik 848×480 @ 30 + renk 848×480 @ 30 MJPG + nokta bulutu (seyreltme 2) | renk 29,97 Hz · derinlik 29,97 Hz · nokta bulutu 28,7–29,7 Hz |
+| Kamera → ROS gecikmesi (`ros2 topic delay`) | derinlik **0,035 sn** · renk **0,042 sn** (USB 2: 0,11–0,14 sn) |
+| Üç abone açıkken işlemci | sürücü **tek çekirdeğin %69'u**, bütün işlemcinin %32'si · 41 °C |
+| Derinlik 1280×800 + renk 1280×720 @ 30 + nokta bulutu | sürücü %178, 9–19 Hz — **ağır geliyor** |
+
+**→ Pi 5 için doğru ayar 848×480 @ 30.**
+
+Ölçüm notları:
+
+- **Sürücü tembel:** abone yokken hiçbir şey yayınlamıyor, işlemcide ~%10'da duruyor. İşlemciyi,
+  gerçekten kullanacağın konular abone edilmişken ölç.
+- **Kablolar:** kutudan çıkan kablo da, bir Samsung USB-C → USB-A kablo da mavi portta 480M bağlandı.
+  Başka, kaliteli bir USB-A → USB-C kablo 5000M verdi. `lsusb -t` ile bak (`5000M` ara).
+- **Uzak masaüstü kamera değildir:** Pi'nin kendi masaüstündeki RViz NoMachine'den izlenince takıldı.
+  RViz, Xorg ve NoMachine kodlayıcısı birlikte işlemciyi doldurdu, Pi de 2,4 GHz Wi-Fi'deydi; konular
+  ise 30 Hz'de kaldı. Büyük ihtimalle uzak masaüstü kodlaması ve Wi-Fi — *HDMI ile doğrulanmadı.*
 
 ---
 
@@ -250,6 +297,9 @@ Sıra, yaşandığı sıra. Her birinin `check.sh` maddesi varsa yanında.
 
 - `pkill -f "…launch.py"` gibi bir komutu, aynı satırda o metni içeren başka komutlarla birlikte
   bash'te çalıştırırsan **kendi kabuğunu da öldürür** (çıkış 144). `wsl/stop.sh` ayrı çağrılmalı.
+  `ssh` üzerinden, metin komut satırında iki kez geçiyorsa `[x]` biçimli desen de yetmez; süreç adıyla
+  eşle: `pkill -x rviz2`. Aynı sebeple `wsl/stop.sh`'ı, komut satırında `ros2 launch orbbec_camera`
+  geçen bir `ssh` komutunun içinden çağırma — o kabuğu da kapatır.
 - Ortamında `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` + `ROS_STATIC_PEERS` bir aradaysa hazır launch
   düğümü kapsayıcıya yükleyemeyebilir — burada olan buydu, değişkeni kaldırınca düzeldi.
 - Eski denemelerden kalan `ros2 launch` süreçleri keşfi karıştırıyor; `wsl/stop.sh` temizler.
