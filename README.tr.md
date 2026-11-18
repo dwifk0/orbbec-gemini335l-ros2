@@ -298,8 +298,9 @@ Sıra, yaşandığı sıra. Her birinin `check.sh` maddesi varsa yanında.
 - `pkill -f "…launch.py"` gibi bir komutu, aynı satırda o metni içeren başka komutlarla birlikte
   bash'te çalıştırırsan **kendi kabuğunu da öldürür** (çıkış 144). `wsl/stop.sh` ayrı çağrılmalı.
   `ssh` üzerinden, metin komut satırında iki kez geçiyorsa `[x]` biçimli desen de yetmez; süreç adıyla
-  eşle: `pkill -x rviz2`. Aynı sebeple `wsl/stop.sh`'ı, komut satırında `ros2 launch orbbec_camera`
-  geçen bir `ssh` komutunun içinden çağırma — o kabuğu da kapatır.
+  eşle: `pkill -x rviz2`. `wsl/stop.sh` tam olarak bunu yapıyor: süreci önce adıyla seçiyor, sonra
+  komut satırına bakıyor; bu yüzden hiçbir kabuğa dokunmuyor ve yalnız bu deponun kamera
+  container'ını ve RViz'ini kapatıyor — aynı makinedeki öbür ROS 2 container'larını (Nav2) değil.
 - Ortamında `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` + `ROS_STATIC_PEERS` bir aradaysa hazır launch
   düğümü kapsayıcıya yükleyemeyebilir — burada olan buydu, değişkeni kaldırınca düzeldi.
 - Eski denemelerden kalan `ros2 launch` süreçleri keşfi karıştırıyor; `wsl/stop.sh` temizler.

@@ -11,7 +11,14 @@
 LIMIT=${1:-3}
 D="$(cd "$(dirname "$0")" && pwd)"
 U="/mnt/c/Program Files/usbipd-win/usbipd.exe"
-while pgrep -x component_conta >/dev/null || pgrep -f "ros2 launch orbbec_came[r]a" >/dev/null; do
+# Runs while this repo's camera is up (same patterns as stop.sh, not every ROS container).
+alive() {  # this repo's camera container or launch still running (name first, then command line)
+  local pid
+  for pid in $(pgrep -x component_conta) $(pgrep -x ros2); do
+    tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -qE -- "__node:=camera_container|launch orbbec_camera" && return 0
+  done; return 1
+}
+while alive; do
   gb=$(powershell.exe -NoProfile -Command "[math]::Round((Get-Process usbipd -ErrorAction SilentlyContinue).PagedMemorySize64/1GB,1)" 2>/dev/null | tr -d '\r' | tr ',' '.')
   if [ -n "$gb" ] && awk -v g="$gb" -v l="$LIMIT" 'BEGIN{exit !(g>l)}'; then
     echo "!!! WATCHDOG: usbipd.exe uses ${gb} GB (limit ${LIMIT} GB) - stopping the camera."

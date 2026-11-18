@@ -57,7 +57,7 @@ RViz on the GPU, zero gaps longer than 0.3 s over a 40 s measurement.
 2. WSL: `sudo apt install ros-jazzy-orbbec-camera ros-jazzy-orbbec-description`
 3. WSL, udev rule:
    `sudo cp /opt/ros/jazzy/share/orbbec_camera/udev/99-obsensor-libusb.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules`
-4. WSL, keep `uvcvideo` away from the camera ([problem 3](#3--wsl-sdk-hangs-in-usb_remove_ep_devs-dmesg-failed-to-query-uvc-control--110)):
+4. WSL, keep `uvcvideo` away from the camera ([problem 3](#3--wsl-sdk-hangs-in-usb_remove_ep_devs-dmesg-failed-to-query-get_info-uvc-control---110)):
    `echo "blacklist uvcvideo" | sudo tee /etc/modprobe.d/orbbec-uvcvideo-off.conf && sudo modprobe -r uvcvideo`
 5. WSL, DDS buffers ([problem 7](#7--rviz-images-come-and-go-point-cloud-frozen)): apply the `60-ros2-dds.conf` block from `linux/setup.sh` by hand.
 6. WSL, clock fight ([problem 8](#8--everything-freezes-for-a-few-seconds-then-recovers--the-clock)): `sudo systemctl disable --now systemd-timesyncd`
@@ -305,8 +305,9 @@ In the order we hit them. The matching `check.sh` item is noted where there is o
 - Running `pkill -f "…launch.py"` in the same shell line as other commands that contain that text
   **kills your own shell** too (exit 144). Call `wsl/stop.sh` on its own. Over `ssh`, a `[x]`-style
   pattern is not enough either when the text appears twice in the command line; match the process
-  name instead: `pkill -x rviz2`. For the same reason do not call `wsl/stop.sh` from inside an `ssh`
-  command whose command line contains `ros2 launch orbbec_camera` — it closes that shell too.
+  name instead: `pkill -x rviz2`. `wsl/stop.sh` does exactly that: it picks processes by name
+  first and only then checks the command line, so it never hits a shell, and it stops only this
+  repo's camera container and RViz — not other ROS 2 containers (Nav2) on the same machine.
 - `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` together with `ROS_STATIC_PEERS` made the stock launch
   unable to load the node into its container here; removing the variable fixed it.
 - Leftover `ros2 launch` processes from earlier attempts confuse discovery; `wsl/stop.sh` cleans them up.
