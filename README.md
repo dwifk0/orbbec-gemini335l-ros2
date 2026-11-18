@@ -367,6 +367,12 @@ In the 3D view, with the **Interact** tool selected:
 
 ---
 
+## Use of AI
+
+The measurements, the screenshots and the fixes were made on the real hardware
+(WSL2 laptop, Raspberry Pi 5). The text and the helper scripts were written with
+AI assistance and checked against those runs.
+
 ## License
 
 [MIT](LICENSE) — use, copy and modify freely; keep the copyright notice.

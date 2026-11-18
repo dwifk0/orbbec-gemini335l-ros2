@@ -359,6 +359,12 @@ Ortadaki 3D alanda (**Interact** aracı seçiliyken):
 
 ---
 
+## Yapay zekâ kullanımı
+
+Ölçümler, ekran görüntüleri ve çözümler gerçek donanımda (WSL2 dizüstü,
+Raspberry Pi 5) yapıldı. Metin ve yardımcı betikler yapay zekâ destekli yazıldı
+ve bu koşularla karşılaştırılarak denetlendi.
+
 ## Lisans
 
 [MIT](LICENSE) — serbestçe kullan, kopyala, değiştir; telif satırını koru.
